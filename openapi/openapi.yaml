@@ -1,0 +1,336 @@
+openapi: 3.0.0
+info:
+  title: Notes API
+  description: A pure API for managing user notes with Auth0 authentication
+  version: 1.0.0
+  contact:
+    name: API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.notes-app.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Auth0 JWT token. The user ID is automatically extracted from the token's 'sub' claim
+
+  schemas:
+    Note:
+      type: object
+      required:
+        - id
+        - userId
+        - title
+        - description
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the note
+          example: "1234567890"
+        userId:
+          type: string
+          description: User ID automatically extracted from the 'sub' claim in the Auth0 JWT token. Cannot be specified in requests
+          example: "google-oauth2|105700257500106388649"
+        title:
+          type: string
+          description: Note title
+          example: "My Note"
+        description:
+          type: string
+          description: Note content/description
+          example: "This is my note content"
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when note was created
+          example: "2026-01-18T10:30:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when note was last updated
+          example: "2026-01-18T10:30:00.000Z"
+
+    CreateNoteRequest:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          type: string
+          description: Note title
+          example: "My Note"
+        description:
+          type: string
+          description: Note content/description
+          example: "This is my note content"
+
+    UpdateNoteRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Updated note title
+          example: "Updated Title"
+        description:
+          type: string
+          description: Updated note content/description
+          example: "Updated description"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Note not found"
+
+    SuccessDeleteResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Note deleted successfully"
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authorization header
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Missing or invalid authorization header"
+
+    TokenExpired:
+      description: Token has expired
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Token verification failed: Token has expired"
+
+    NotFound:
+      description: Note not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Note not found"
+
+    BadRequest:
+      description: Bad request - missing or invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Title and description are required"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Internal server error"
+
+paths:
+  /api/notes:
+    post:
+      summary: Create a new note
+      description: Creates a new note for the authenticated user. The user ID is automatically extracted from the Authorization bearer token
+      operationId: createNote
+      tags:
+        - Notes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNoteRequest"
+      responses:
+        "201":
+          description: Note created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+              example:
+                id: "1234567890"
+                userId: "google-oauth2|105700257500106388649"
+                title: "My Note"
+                description: "This is my note content"
+                createdAt: "2026-01-18T10:30:00.000Z"
+                updatedAt: "2026-01-18T10:30:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    get:
+      summary: List all notes
+      description: Retrieves all notes for the authenticated user. Only notes belonging to the user ID in the Authorization bearer token are returned
+      operationId: listNotes
+      tags:
+        - Notes
+      responses:
+        "200":
+          description: List of notes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Note"
+              example:
+                - id: "1234567890"
+                  userId: "google-oauth2|105700257500106388649"
+                  title: "My Note"
+                  description: "This is my note content"
+                  createdAt: "2026-01-18T10:30:00.000Z"
+                  updatedAt: "2026-01-18T10:30:00.000Z"
+                - id: "0987654321"
+                  userId: "google-oauth2|105700257500106388649"
+                  title: "Another Note"
+                  description: "More note content"
+                  createdAt: "2026-01-18T11:00:00.000Z"
+                  updatedAt: "2026-01-18T11:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/notes/{id}:
+    get:
+      summary: Get a specific note
+      description: Retrieves a specific note by ID for the authenticated user. The note must belong to the user ID extracted from the Authorization bearer token
+      operationId: getNote
+      tags:
+        - Notes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The note ID
+          schema:
+            type: string
+          example: "1234567890"
+      responses:
+        "200":
+          description: Note retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+              example:
+                id: "1234567890"
+                userId: "google-oauth2|105700257500106388649"
+                title: "My Note"
+                description: "This is my note content"
+                createdAt: "2026-01-18T10:30:00.000Z"
+                updatedAt: "2026-01-18T10:30:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    patch:
+      summary: Update a note
+      description: Updates an existing note by ID for the authenticated user. The note must belong to the user ID extracted from the Authorization bearer token
+      operationId: updateNote
+      tags:
+        - Notes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The note ID
+          schema:
+            type: string
+          example: "1234567890"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNoteRequest"
+      responses:
+        "200":
+          description: Note updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+              example:
+                id: "1234567890"
+                userId: "google-oauth2|105700257500106388649"
+                title: "Updated Title"
+                description: "Updated description"
+                createdAt: "2026-01-18T10:30:00.000Z"
+                updatedAt: "2026-01-18T10:35:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      summary: Delete a note
+      description: Deletes a note by ID for the authenticated user. The note must belong to the user ID extracted from the Authorization bearer token
+      operationId: deleteNote
+      tags:
+        - Notes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The note ID
+          schema:
+            type: string
+          example: "1234567890"
+      responses:
+        "200":
+          description: Note deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessDeleteResponse"
+              example:
+                message: "Note deleted successfully"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+tags:
+  - name: Notes
+    description: Operations for managing notes
